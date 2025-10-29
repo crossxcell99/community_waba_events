@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include community_waba_events *.css
+recursive-include community_waba_events *.csv
+recursive-include community_waba_events *.html
+recursive-include community_waba_events *.ico
+recursive-include community_waba_events *.js
+recursive-include community_waba_events *.json
+recursive-include community_waba_events *.md
+recursive-include community_waba_events *.png
+recursive-include community_waba_events *.py
+recursive-include community_waba_events *.svg
+recursive-include community_waba_events *.txt
+recursive-exclude community_waba_events *.pyc
