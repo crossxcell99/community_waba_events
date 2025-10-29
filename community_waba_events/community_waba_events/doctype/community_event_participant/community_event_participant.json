@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-10-29 19:46:05.953995",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "community_user",
+  "community_event",
+  "participant_type"
+ ],
+ "fields": [
+  {
+   "fieldname": "community_user",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Community User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "community_event",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Community Event",
+   "options": "Community Event",
+   "reqd": 1
+  },
+  {
+   "fieldname": "participant_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Participant Type",
+   "options": "Community Event Participant Type"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-10-29 20:44:53.704656",
+ "modified_by": "Administrator",
+ "module": "Community WABA Events",
+ "name": "Community Event Participant",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "community_user"
+}
