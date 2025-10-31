@@ -7,7 +7,7 @@ from frappe.model.document import Document
 from frappe.utils import cint
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=False)
 def share_contact():
     """creates a virtual id with context set to share_contact"""
     estate = frappe.form_dict.get("estate")
@@ -60,11 +60,11 @@ def create_social_activity_score(virtual_id):
             "reference": doc.name,
         }
     )
-    score.insert()
+    score.insert(ignore_permissions=True)
     return score
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def view_contact():
     """downloads contact vcf file for contact with"""
 
@@ -86,7 +86,9 @@ def view_contact():
     if not (first or last or phone):
         raise frappe.ValidationError("No contact information available for linked user")
 
-    create_social_activity_score(doc)
+    score_doc = create_social_activity_score(doc)
+    if score_doc:
+        frappe.db.commit()
 
     # Build vCard (VERSION:3.0)
     phone_line = f"TEL;TYPE=CELL:{vcard_esc(phone)}\r\n" if phone else ""
@@ -105,6 +107,66 @@ def view_contact():
     frappe.local.response.type = "download"
 
 
+def get_top_score(event: str):
+    """get the highest score and number of participants"""
+    out = frappe.db.sql(
+        """
+        SELECT
+        COALESCE(MAX(t.total_score), 0) AS highest_score,
+        COUNT(*) AS participants
+        FROM (
+        SELECT `participant`, SUM(score) AS total_score
+        FROM `tabCommunity Event Activity Score`
+        WHERE event = %s
+        GROUP BY `participant`
+        ) AS t;
+    """,
+        (event,),
+        as_dict=1,
+    )
+    return out[0] if out else frappe._dict()
+
+
+def get_participant_score(event: str, participant: str):
+    """returns an empty dict if participant has no score yet"""
+
+    out = frappe.db.sql(
+        """
+        WITH user_totals AS (
+        SELECT
+            `participant`,
+            COUNT(*) AS participants,
+            SUM(score) AS total_score
+        FROM `tabCommunity Event Activity Score`
+        WHERE event = %(event)s
+        GROUP BY `participant`
+        ),
+        ranked AS (
+        SELECT
+            `participant`,
+            total_score,
+            DENSE_RANK() OVER (ORDER BY total_score DESC) AS position,
+            CUME_DIST() OVER (ORDER BY total_score) AS cume_dist,
+            MAX(total_score) OVER () AS highest_score,
+            `participants`
+        FROM user_totals
+        )
+        SELECT
+        `participant`,
+        total_score,
+        position,
+        ROUND(cume_dist * 100, 2) AS percentile,
+        highest_score,
+        `participants`
+        FROM ranked
+        WHERE `participant` = %(participant)s;
+        """,
+        {"event": event, "participant": participant},
+        as_dict=1,
+    )
+    return out[0] if out else frappe._dict()
+
+
 @frappe.whitelist(allow_guest=False)
 def leaderboard():
     """community event activity leaderboard"""
@@ -113,23 +175,18 @@ def leaderboard():
     if not event:
         raise frappe.ValidationError("event required")
 
-    q = frappe.db.sql(
-        """
-SELECT
-    COALESCE( (SELECT SUM(score)
-                FROM `tabCommunity Event Activity Score`
-                WHERE event = %(event)s AND participant = %(participant)s), 0) AS user_total,
-    COALESCE( (SELECT MAX(user_total)
-                FROM (SELECT participant, SUM(score) AS user_total
-                    FROM `tabCommunity Event Activity Score`
-                    WHERE event = %(event)s
-                    GROUP BY participant) AS t), 0) AS highest_user_total;
-""",
-        {"event": event, "participant": frappe.session.user},
-        as_dict=1,
+    participant = frappe.db.get_value(
+        "Community Event Participant",
+        {"community_event": event, "community_user": frappe.session.user},
     )
-    res = q[0]
-    return {"score": res.user_total, "highest": res.highest_user_total}
+    if not participant:
+        frappe.throw("User is not registered for event")
+
+    score = get_participant_score(event, participant)
+    if not score:
+        score.update(get_top_score(event))
+
+    return score
 
 
 def current_user_is_event_admin(event: str):

@@ -4,13 +4,17 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2025-10-31 08:51:16.544090",
+ "modified": "2025-10-31 19:46:30.939118",
  "modified_by": "Administrator",
  "module": "Community WABA Events",
  "name": "community-event-page",
  "owner": "Administrator",
  "page_name": "community-event-page",
- "roles": [],
+ "roles": [
+  {
+   "role": "All"
+  }
+ ],
  "script": null,
  "standard": "Yes",
  "style": null,
