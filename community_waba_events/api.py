@@ -1,8 +1,10 @@
 """extra community apis to create"""
 
+import operator
+
 import frappe
-import frappe.model
-import frappe.model.document
+from frappe.model.document import Document
+from frappe.utils import cint
 
 
 @frappe.whitelist()
@@ -46,7 +48,7 @@ def create_social_activity_score(virtual_id):
         return
     doc = (
         virtual_id
-        if isinstance(virtual_id, frappe.model.document.Document)
+        if isinstance(virtual_id, Document)
         else frappe.get_doc("Virtual ID", virtual_id)
     )
     score = frappe.get_doc(
@@ -130,19 +132,194 @@ SELECT
     return {"score": res.user_total, "highest": res.highest_user_total}
 
 
+def current_user_is_event_admin(event: str):
+    """ensure current user is an event admin, or Administrator"""
+    user = frappe.session.user
+    if user == "Administrator":
+        return True
+
+    events = frappe.get_all(
+        "Community Event",
+        fields=["name"],
+        filters=[["Community Event Admins", "user", "=", user], ["name", "=", event]],
+    )
+    return bool(events)
+
+
+@frappe.whitelist(allow_guest=False)
+def get_events():
+    """Return events that include current user as admin"""
+
+    events = []
+    events_list = frappe.get_all(
+        "Community Event",
+        fields=["name"],
+        filters=[["Community Event Admins", "user", "=", frappe.session.user]],
+    )
+    for ev in events_list:
+        item_count = frappe.db.count("Community Event Items", {"parent": ev.name})
+        events.append(
+            {
+                "name": ev.name,
+                "item_count": item_count,
+                "route": f"/services/group.html?group={ev.name}",
+            }
+        )
+    return events
+
+
+@frappe.whitelist(allow_guest=False)
+def get_event(event: str):
+    """get specific event"""
+    if not event:
+        frappe.throw("Event name required")
+
+    event = frappe.get_cached_doc("Community Event", event)
+    current_user = frappe.session.user
+    allowed = any((row.user == current_user) for row in event.get("admins", []))
+    if not allowed:
+        frappe.throw("You are not an admin for this event")
+
+    return {
+        "name": event.name,
+        "start": event.start,
+        "end": event.end,
+        "items": [
+            {
+                "item": s.item,
+                "participant_type": s.participant_type,
+                "user_max": s.user_max,
+                "event_max": s.event_max,
+            }
+            for s in event.get("items", [])
+        ],
+        "admins": [{"user": p.user} for p in event.get("admins", [])],
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def verify_participant(event: str, virtual_id: str):
+    """check if a participant is registered for event"""
+    if not current_user_is_event_admin(event):
+        frappe.throw(f"User is not an admin for event {event=!r}")
+
+    user = frappe.db.get_value("Virtual ID", virtual_id, "owner")
+    if not user:
+        frappe.throw("Invalid Virtual ID")
+
+    uevent = frappe.db.get_value(
+        "Community Event Participant",
+        {"community_event": event, "community_user": user},
+    )
+    if not uevent:
+        frappe.throw("User is not registered for event")
+    return {"ok": True, "data": frappe.db.get_value("User", user, "full_name")}
+
+
+@frappe.whitelist(allow_guest=False)
+def distribute_item(event: str, item: str, virtual_id: str):
+    """indicate that item has been received"""
+    if not current_user_is_event_admin(event):
+        frappe.throw(f"User is not an admin for event {event=!r}")
+
+    dt = "Community Event Item Receipt"
+    user = frappe.db.get_value("Virtual ID", virtual_id, "owner")
+    if not user:
+        frappe.throw("Invalid Virtual ID")
+    participant = frappe.db.get_value(
+        "Community Event Participant",
+        {"community_event": event, "community_user": user},
+    )
+    if not participant:
+        frappe.throw("User is not registered for event")
+
+    # check user max
+    event_doc = frappe.get_cached_doc("Community Event", event)
+    rows = event_doc.get("items", {"item": item})
+    if not rows:
+        frappe.throw(f"Invalid Item {item=!r} for event {event=!r}")
+
+    row = rows[0]
+
+    def validate(after=False):
+        filter_str = "event = %(event)s AND item = %(item)s"
+        q = frappe.db.sql(
+            f"""SELECT
+            COALESCE( (SELECT COUNT(name)
+                    FROM `tab{dt}`
+                    WHERE {filter_str} AND participant = %(participant)s), 0) AS user_total,
+            COALESCE( (SELECT COUNT(name)
+                        FROM `tab{dt}`
+                        WHERE {filter_str}), 0) AS event_total;
+            """,
+            {"event": event, "participant": participant, "item": item},
+            as_dict=1,
+        )[0]
+        op = operator.gt if after else operator.ge
+        if cint(row.user_max) >= 0 and op(q.user_total, row.user_max):
+            frappe.throw(f"User total ({row.user_max}) exceeded for item {item}")
+        if cint(row.event_max) >= 0 and op(q.event_total, row.event_max):
+            frappe.throw(f"Event total ({row.user_max}) exceeded for item {item}")
+
+    validate()
+    receipt = frappe.get_doc(
+        {
+            "doctype": dt,
+            "event": event,
+            "item": item,
+            "participant": participant,
+            "reference_id": virtual_id,
+        }
+    )
+    receipt.insert(ignore_permissions=True)
+    # rerun validations
+    # if error occurs, it should rollback
+    validate(after=True)
+    return receipt
+
+
 @frappe.whitelist()
-def distribute_item():
-    """indicate that a participant has received an event item"""
+@frappe.validate_and_sanitize_search_inputs
+def get_event_items(doctype, txt, searchfield, start, page_len, filters):
 
-    virtual_id = frappe.form_dict.get("virtual_id")
-    if not virtual_id:
-        raise frappe.ValidationError("virtual_id required")
+    doctype = "Community Event Item"
+    condition = ""
+    meta = frappe.get_meta(doctype)
+    for fieldname, value in filters.items():
+        if meta.get_field(fieldname) or fieldname in frappe.db.DEFAULT_COLUMNS:
+            condition += f" and {fieldname}={frappe.db.escape(value)}"
 
-    item = frappe.form_dict.get("item")
-    if not item:
-        raise frappe.ValidationError("item required")
+    searchfields = meta.get_search_fields()
 
-    # TODO: check if user_max exceeded
-    # TODO: check if event_max exceeded
-    # TODO: create Community Event Item Receipt for user and check max again
-    # TODO: return receipt doc
+    if searchfield and (
+        meta.get_field(searchfield) or searchfield in frappe.db.DEFAULT_COLUMNS
+    ):
+        searchfields.append(searchfield)
+
+    search_condition = ""
+    for field in searchfields:
+        if search_condition == "":
+            search_condition += f"`tab{doctype}`.`{field}` like %(txt)s"
+        else:
+            search_condition += f" or `tab{doctype}`.`{field}` like %(txt)s"
+
+    return frappe.db.sql(
+        """select
+			`tabCommunity Event Item`.name
+		from
+			`tabCommunity Event Item`
+		where
+			({search_condition})
+			{condition}
+		limit %(page_len)s offset %(start)s""".format(
+            key=searchfield,
+            search_condition=search_condition,
+            condition=condition or "",
+        ),
+        {
+            "txt": "%" + txt + "%",
+            "_txt": txt.replace("%", ""),
+            "start": start,
+            "page_len": page_len,
+        },
+    )

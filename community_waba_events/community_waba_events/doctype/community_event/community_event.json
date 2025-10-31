@@ -1,6 +1,6 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "autoname": "field:event_name",
  "creation": "2025-10-29 19:32:59.048044",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -9,8 +9,9 @@
   "event_name",
   "start",
   "end",
-  "amended_from",
-  "items"
+  "items",
+  "admins",
+  "amended_from"
  ],
  "fields": [
   {
@@ -18,7 +19,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Event Name",
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fieldname": "start",
@@ -26,6 +28,7 @@
    "label": "Start"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "end",
    "fieldtype": "Datetime",
    "label": "End"
@@ -40,16 +43,24 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "items",
    "fieldtype": "Table",
    "label": "Items",
    "options": "Community Event Items"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "admins",
+   "fieldtype": "Table",
+   "label": "Admins",
+   "options": "Community Event Admins"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-10-29 20:53:36.957162",
+ "modified": "2025-10-31 07:04:27.445445",
  "modified_by": "Administrator",
  "module": "Community WABA Events",
  "name": "Community Event",

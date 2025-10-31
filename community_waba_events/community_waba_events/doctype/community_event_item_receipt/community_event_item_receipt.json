@@ -6,7 +6,9 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "event",
   "item",
+  "participant",
   "reference_id"
  ],
  "fields": [
@@ -26,11 +28,25 @@
    "label": "Reference ID",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "participant",
+   "fieldtype": "Link",
+   "label": "Participant",
+   "options": "Community Event Participant",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Link",
+   "label": "Event",
+   "options": "Community Event",
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-29 21:05:50.886858",
+ "modified": "2025-10-31 12:20:57.568530",
  "modified_by": "Administrator",
  "module": "Community WABA Events",
  "name": "Community Event Item Receipt",

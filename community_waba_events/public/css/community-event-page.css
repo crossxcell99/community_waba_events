@@ -1,0 +1,23 @@
+.qr-overlay {
+    position:fixed;
+    inset:0;
+    background: rgba(0,0,0,0.85);
+    z-index: 9999;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 10px;
+}
+.qr-wrap {
+    width:100%;
+    max-width:420px;
+    background: #fff;
+    padding: 12px;
+    border-radius: 8px;
+}
+.item-card { cursor: pointer; }
+.card-title { font-size: 1.05rem; }
+@media (max-width:480px) {
+    .card-body { padding: 12px; }
+    .btn { font-size: 16px; padding: 10px 12px; }
+}
