@@ -60,8 +60,12 @@ def create_social_activity_score(virtual_id):
             "reference": doc.name,
         }
     )
-    score.insert(ignore_permissions=True)
-    return score
+    try:
+        score.insert(ignore_permissions=True)
+        return score
+    except frappe.ValidationError:
+        frappe.clear_last_message()
+        return None
 
 
 @frappe.whitelist(allow_guest=True)
@@ -152,7 +156,6 @@ def get_participant_score(event: str, participant: str):
         FROM user_totals
         )
         SELECT
-        `participant`,
         total_score,
         position,
         ROUND(cume_dist * 100, 2) AS percentile,

@@ -166,7 +166,6 @@ class CommunityEventAdmin {
                 fieldname: 'item_select',
                 fieldtype: 'Link',
                 options: 'Community Event Item',
-                ignore_link_validation: true,
                 get_query: function(...args) {
                     console.log("get_query args:: ", args);
                     return {
