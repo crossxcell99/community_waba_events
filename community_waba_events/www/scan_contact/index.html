@@ -3,11 +3,61 @@
 
 {% block page_content %}
 <link rel="stylesheet" href="/assets/community_waba_events/css/scan-contact.css">
+<style>
+    .error-container {
+        max-width: 400px;
+        margin: 60px auto;
+        border: 1px solid #d1d8dd;
+        border-radius: 6px;
+        padding: 14px;
+        background-color: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .error-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #d1d8dd;
+    }
+
+    .error-indicator {
+        width: 10px;
+        height: 10px;
+        background-color: #d9534f;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+
+    .error-title {
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .error-message {
+        font-size: 1.05rem;
+        color: #6c757d;
+        margin-top: 15px;
+    }
+</style>
 
 <div class="page-container">
-  <header class="topbar text-center">
-    <h2>Scan Contact</h2>
-  </header>
+    <header class="topbar text-center">
+        <h2>Scan Contact</h2>
+    </header>
+
+    <div id="invalid-code" class="mt-lg mb-lg hide">
+        <div class="error-container text-center">
+            <div class="error-header">
+                <div class="error-indicator"></div>
+                <div class="error-title">Invalid Contact Share Code</div>
+            </div>
+            <div class="error-message">
+                Invalid Contact Share QR Code. Please ensure the target is a valid QR Code
+            </div>
+        </div>
+    </div>
 
     <main id="qr-main-wrapper">
         <div class="qr-container">
@@ -33,7 +83,6 @@
 
     const stopAndClose = (html5QrCode) => {
         if (html5QrCode) {
-            console.log(">>> ", { html5QrCode })
             html5QrCode.stop().catch(() => {}).then(()=> {
                 html5QrCode.clear()?.catch(()=>{});
             });
@@ -52,16 +101,24 @@
         try {
             const current = new URL(window.location.href)
             const url = new URL(share_url)
+            if (url.pathname !== "/api/method/community_waba_events.api.view_contact") {
+                $("#invalid-code .error-message").text("Invalid Contact Share QR Code. Please ensure the target is a valid QR Code");
+                $("#invalid-code").removeClass("hide");
+                return;
+            }
             url.searchParams.append("for_virtual_id", current.searchParams.get("virtual_id"))
             window.location.href = url.toString()
         } catch (e) {
             console.log("error opening share contact page: ", e)
+            $("#invalid-code .error-message").text("Error parsing Contact Share QR Code");
+            $("#invalid-code").removeClass("hide");
         }
     }
 
     const launchScanner = (html5QrCode) => {
         $('#open-qr').addClass("hide");
         $('#close-qr').removeClass("hide");
+        $("#invalid-code").addClass("hide");
 
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         html5QrCode.start(
@@ -81,8 +138,7 @@
                 (decodedText) => { on_success(decodedText); stopAndClose(html5QrCode); },
                 () => {}
             ).catch(e => {
-                frappe.msgprint(`Unable to access camera: ${e.message}`);
-                $overlay.remove();
+                frappe.msgprint(`Unable to access camera: ${e}`);
             });
         });
     };

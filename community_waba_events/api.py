@@ -1,6 +1,7 @@
 """extra community apis to create"""
 
 import operator
+from typing import Optional
 
 import frappe
 from frappe.model.document import Document
@@ -41,23 +42,42 @@ def vcard_esc(text: str) -> str:
     )
 
 
-def create_social_activity_score(virtual_id):
+def create_social_activity_score(virtual_id, for_virtual_id: Optional[str] = None):
     """indicate that the virtual is has been used"""
+    if not for_virtual_id:
+        # only award points if code is scanned using scan_contact service
+        return None
+
     docname = virtual_id if isinstance(virtual_id, str) else virtual_id.name
-    if frappe.db.exists("Community Event Activity Score", {"reference": docname}):
-        return
-    doc = (
-        virtual_id
-        if isinstance(virtual_id, Document)
-        else frappe.get_doc("Virtual ID", virtual_id)
+    row = frappe.db.sql(
+        """
+        SELECT
+            p.name, p.community_event, v.owner, v.estate, v.name AS docname, v2.owner AS other
+        FROM `tabCommunity Event Participant` AS p
+        JOIN `tabVirtual ID` AS v
+            ON v.name = %s AND p.community_event = v.estate
+        LEFT JOIN `tabVirtual ID` AS v2
+            ON v2.name = %s AND v.name != v2.name AND v2.estate = p.community_event
+        WHERE p.community_event IS NOT NULL
+        AND p.community_user = v.owner
+        """,
+        (docname, for_virtual_id),
+        as_dict=1,
     )
+    if not row:
+        return None
+
+    row = row[0]
+    reference = f"{row.community_event}:{row.owner}:{row.other}"
+    if frappe.db.exists("Community Event Activity Score", {"reference": reference}):
+        return None
     score = frappe.get_doc(
         {
             "doctype": "Community Event Activity Score",
-            "event": doc.estate,  # the name of the estate is the name of the event
-            "participant": doc.owner,  # the the community user
+            "event": row.community_event,
+            "participant": row.name,
             "score": 1,
-            "reference": doc.name,
+            "reference": reference,
         }
     )
     try:
@@ -90,7 +110,9 @@ def view_contact():
     if not (first or last or phone):
         raise frappe.ValidationError("No contact information available for linked user")
 
-    score_doc = create_social_activity_score(doc)
+    score_doc = create_social_activity_score(
+        doc, frappe.form_dict.get("for_virtual_id")
+    )
     if score_doc:
         frappe.db.commit()
 
