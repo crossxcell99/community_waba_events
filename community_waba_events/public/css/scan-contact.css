@@ -1,0 +1,22 @@
+/* scanner modal-like */
+.scanner-overlay {
+  position: fixed;
+  left:0; right:0; top:0; bottom:0;
+  background: rgba(0,0,0,0.55);
+  display:flex; align-items:center; justify-content:center;
+  z-index: 9999;
+}
+.scanner-sheet {
+  width: calc(100% - 24px);
+  max-width:420px;
+  background:#fff;
+  border-radius:12px;
+  padding:12px;
+}
+.scanner-actions { display:flex; gap:8px; margin-top:8px; justify-content:space-between; }
+
+/* responsive */
+@media (max-width:420px) {
+  .btn-large { font-size:15px; min-width:80px; }
+  .scanner-sheet { max-width: 100%; margin: 10px; }
+}

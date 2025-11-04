@@ -1,0 +1,98 @@
+{% extends "templates/web.html" %}
+{% block title %}Scan Contact{% endblock %}
+
+{% block page_content %}
+<link rel="stylesheet" href="/assets/community_waba_events/css/scan-contact.css">
+
+<div class="page-container">
+  <header class="topbar text-center">
+    <h2>Scan Contact</h2>
+  </header>
+
+    <main id="qr-main-wrapper">
+        <div class="qr-container">
+            <div class="qr-wrap">
+                <div id="qr-reader" style="width:100%"></div>
+                <div class="text-center" style="margin-top:16px">
+                    <button class="btn btn-sm btn-secondary" id="close-qr">Close</button>
+                    <button class="btn btn-sm btn-secondary hide" id="open-qr">Start Scaning</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="/assets/community_waba_events/js/html5-qrcode.min.js"></script>
+<script>
+    const addListeners = (html5QrCode) => {
+        $('#close-qr').on('click', () => stopAndClose(html5QrCode));
+        $('#open-qr').on('click', () => {
+            launchScanner(html5QrCode);
+        })
+    };
+
+    const stopAndClose = (html5QrCode) => {
+        if (html5QrCode) {
+            console.log(">>> ", { html5QrCode })
+            html5QrCode.stop().catch(() => {}).then(()=> {
+                html5QrCode.clear()?.catch(()=>{});
+            });
+        }
+        $('#open-qr').removeClass("hide");
+        $('#close-qr').addClass("hide");
+    };
+
+    // Wait for html5-qrcode to be available
+    const waitForLib = (cb) => {
+        if (typeof Html5Qrcode !== 'undefined') cb();
+        else setTimeout(()=>waitForLib(cb), 200);
+    };
+
+    const on_success = (share_url) => {
+        try {
+            const current = new URL(window.location.href)
+            const url = new URL(share_url)
+            url.searchParams.append("for_virtual_id", current.searchParams.get("virtual_id"))
+            window.location.href = url.toString()
+        } catch (e) {
+            console.log("error opening share contact page: ", e)
+        }
+    }
+
+    const launchScanner = (html5QrCode) => {
+        $('#open-qr').addClass("hide");
+        $('#close-qr').removeClass("hide");
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        html5QrCode.start(
+            { facingMode: { exact: "environment" } }, // prefer back camera
+            config,
+            (decodedText, decodedResult) => {
+                // decodedText is the content of the QR (we expect virtual id)
+                on_success(decodedText);
+                stopAndClose(html5QrCode);
+            },
+            (errorMessage) => {
+                // ignore keep scanning
+            }
+        ).catch(err => {
+            // fallback to more permissive camera constraint
+            html5QrCode.start({ facingMode: "environment" }, config,
+                (decodedText) => { on_success(decodedText); stopAndClose(html5QrCode); },
+                () => {}
+            ).catch(e => {
+                frappe.msgprint(`Unable to access camera: ${e.message}`);
+                $overlay.remove();
+            });
+        });
+    };
+
+    const startScanning = () => {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        addListeners(html5QrCode);
+        launchScanner(html5QrCode);
+    };
+
+    document.addEventListener('DOMContentLoaded', startScanning);
+</script>
+{% endblock %}
