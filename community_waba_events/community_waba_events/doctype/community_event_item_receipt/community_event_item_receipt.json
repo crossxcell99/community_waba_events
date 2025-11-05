@@ -18,20 +18,19 @@
    "in_list_view": 1,
    "label": "Item",
    "options": "Community Event Item",
-   "reqd": 1,
-   "unique": 1
+   "reqd": 1
   },
   {
    "fieldname": "reference_id",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Reference ID",
-   "reqd": 1,
-   "search_index": 1
+   "reqd": 1
   },
   {
    "fieldname": "participant",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Participant",
    "options": "Community Event Participant",
    "reqd": 1
@@ -39,6 +38,7 @@
   {
    "fieldname": "event",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Event",
    "options": "Community Event",
    "reqd": 1
@@ -46,7 +46,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-31 12:20:57.568530",
+ "modified": "2025-11-05 10:34:08.891697",
  "modified_by": "Administrator",
  "module": "Community WABA Events",
  "name": "Community Event Item Receipt",
@@ -66,5 +66,6 @@
   }
  ],
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "title_field": "participant"
 }

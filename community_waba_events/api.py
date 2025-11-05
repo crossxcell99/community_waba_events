@@ -308,40 +308,44 @@ def distribute_item(event: str, item: str, virtual_id: str):
     user = frappe.db.get_value("Virtual ID", virtual_id, "owner")
     if not user:
         frappe.throw("Invalid Virtual ID")
-    participant = frappe.db.get_value(
+    p = frappe.db.get_value(
         "Community Event Participant",
         {"community_event": event, "community_user": user},
+        fieldname=["name", "participant_type"],
+        as_dict=1,
     )
-    if not participant:
+    if not p:
         frappe.throw("User is not registered for event")
+    participant = p.name
+    ptype = p.participant_type or ""
 
     # check user max
-    event_doc = frappe.get_cached_doc("Community Event", event)
-    rows = event_doc.get("items", {"item": item})
-    if not rows:
-        frappe.throw(f"Invalid Item {item=!r} for event {event=!r}")
-
-    row = rows[0]
+    for row in frappe.get_cached_doc("Community Event", event).get("items"):
+        if row.item == item and ptype == (row.participant_type or ""):
+            break
+    else:
+        frappe.throw(
+            f"Invalid Item {item!r} for Event {event!r} and Participant Type {ptype!r}"
+        )
 
     def validate(after=False):
-        filter_str = "event = %(event)s AND item = %(item)s"
         q = frappe.db.sql(
             f"""SELECT
-            COALESCE( (SELECT COUNT(name)
-                    FROM `tab{dt}`
-                    WHERE {filter_str} AND participant = %(participant)s), 0) AS user_total,
-            COALESCE( (SELECT COUNT(name)
-                        FROM `tab{dt}`
-                        WHERE {filter_str}), 0) AS event_total;
+            COALESCE(SUM(CASE WHEN r.participant = %(participant)s THEN 1 ELSE 0 END), 0) AS user_total,
+            COALESCE(SUM(CASE WHEN COALESCE(p.participant_type, "") = %(ptype)s THEN 1 ELSE 0 END), 0) AS event_total
+            FROM `tab{dt}` r
+            LEFT JOIN `tabCommunity Event Participant` p ON p.name = r.participant
+            WHERE r.event = %(event)s
+            AND r.item = %(item)s
             """,
-            {"event": event, "participant": participant, "item": item},
+            {"event": event, "participant": participant, "ptype": ptype, "item": item},
             as_dict=1,
         )[0]
         op = operator.gt if after else operator.ge
         if cint(row.user_max) >= 0 and op(q.user_total, row.user_max):
             frappe.throw(f"User total ({row.user_max}) exceeded for item {item}")
         if cint(row.event_max) >= 0 and op(q.event_total, row.event_max):
-            frappe.throw(f"Event total ({row.user_max}) exceeded for item {item}")
+            frappe.throw(f"Event total ({row.event_max}) exceeded for item {item}")
 
     validate()
     receipt = frappe.get_doc(
