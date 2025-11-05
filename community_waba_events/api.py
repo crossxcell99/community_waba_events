@@ -160,21 +160,20 @@ def get_participant_score(event: str, participant: str):
         """
         WITH user_totals AS (
         SELECT
-            `participant`,
-            COUNT(*) AS participants,
+            participant,
             SUM(score) AS total_score
         FROM `tabCommunity Event Activity Score`
         WHERE event = %(event)s
-        GROUP BY `participant`
+        GROUP BY participant
         ),
         ranked AS (
         SELECT
-            `participant`,
+            participant,
             total_score,
             DENSE_RANK() OVER (ORDER BY total_score DESC) AS position,
             CUME_DIST() OVER (ORDER BY total_score) AS cume_dist,
             MAX(total_score) OVER () AS highest_score,
-            `participants`
+            COUNT(*) OVER () AS participants
         FROM user_totals
         )
         SELECT
@@ -182,9 +181,9 @@ def get_participant_score(event: str, participant: str):
         position,
         ROUND(cume_dist * 100, 2) AS percentile,
         highest_score,
-        `participants`
+        participants
         FROM ranked
-        WHERE `participant` = %(participant)s;
+        WHERE participant = %(participant)s;
         """,
         {"event": event, "participant": participant},
         as_dict=1,
@@ -209,6 +208,13 @@ def leaderboard():
 
     score = get_participant_score(event, participant)
     if not score:
+        score = {
+            "total_score": 0,
+            "position": 0,
+            "percentile": 0,
+            "highest_score": 0,
+            "participants": 0,
+        }
         score.update(get_top_score(event))
 
     return score
